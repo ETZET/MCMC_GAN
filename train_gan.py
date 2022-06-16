@@ -42,6 +42,10 @@ if __name__ == "__main__":
     # Training Loop
     model = DCGAN().to(device)
 
+    # check device and topology
+    for n, p in model.named_parameters():
+        print(p.device, '', n)
+
     # data logging
     wandb.init(project="mcmc-gan")
 

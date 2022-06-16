@@ -116,6 +116,7 @@ class DCGAN(nn.Module):
     
         for epoch in range(epochs):
             for i, data in enumerate(dataloader):
+                tic = time.time()
                 ### Update Discriminator
                 optimizer_disc.zero_grad()
 
@@ -157,11 +158,13 @@ class DCGAN(nn.Module):
 
                 optimizer_gen.step()
 
+                toc = time.time()
+
                 # Output training stats
                 if i % 2 == 0:
-                    print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
+                    print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f Elapsed time: %.4fs'
                         % (epoch, epochs, i, len(dataloader),
-                            errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
+                            errD.item(), errG.item(), D_x, D_G_z1, D_G_z2, (toc-tic)))
 
                 # Save Losses for plotting later
                 G_losses.append(errG.item())
