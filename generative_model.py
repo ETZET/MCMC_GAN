@@ -1,3 +1,4 @@
+from numpy import save
 import torch
 from torch import nn
 
@@ -89,7 +90,7 @@ class DCGAN(nn.Module):
             nn.init.normal_(m.weight.data, 1.0, 0.02)
             nn.init.constant_(m.bias.data, 0)
 
-    def optimize(self,dataloader,lr=1e-4,epochs=10,betas=(0.5,0.999),device="cpu",scaler=None):
+    def optimize(self,dataloader,Glr=1e-4,Dlr=1e-4,epochs=10,betas=(0.5,0.999),device="cpu",scaler=None, savepath=None):
 
         # Initialize BCELoss function
         loss = nn.BCELoss()
@@ -104,8 +105,8 @@ class DCGAN(nn.Module):
         real_label = 0.9
         fake_label = 0
 
-        optimizer_gen = torch.optim.Adam(self.gen.parameters(),lr=lr,betas=betas)
-        optimizer_disc = torch.optim.Adam(self.disc.parameters(),lr=lr,betas=betas)
+        optimizer_gen = torch.optim.Adam(self.gen.parameters(),lr=Glr,betas=betas)
+        optimizer_disc = torch.optim.Adam(self.disc.parameters(),lr=Dlr,betas=betas)
 
         # Lists to keep track of progress
         img_list = []
@@ -162,9 +163,18 @@ class DCGAN(nn.Module):
 
                 # Output training stats
                 if i % 2 == 0:
-                    print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f Elapsed time: %.4fs'
+                    print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f  Elapsed time per Epoch: %.4fs'
                         % (epoch, epochs, i, len(dataloader),
                             errD.item(), errG.item(), D_x, D_G_z1, D_G_z2, (toc-tic)))
+                if epoch%5 ==0:
+                    torch.save({
+                        'epoch': epoch,
+                        'model_state_dict': self.state_dict(),
+                        'gen_optimizer_state_dict': optimizer_gen.state_dict(),
+                        'dist_optimizer_state_dict': optimizer_disc.state_dict(),
+                        'D loss': errD.item(),
+                        'G loss': errG.item()
+                        }, "{}/DCGAN_epoch{}.model".format(savepath,epoch))
 
                 # Save Losses for plotting later
                 G_losses.append(errG.item())
@@ -179,6 +189,7 @@ class DCGAN(nn.Module):
                     axes[1][i].pcolormesh(scaler.inverse_transform(fake[i][0]))
                     axes[0][i].pcolormesh(scaler.inverse_transform(real_data_cpu[i][0]))
                 fig.savefig("{}/{}.png".format('./figures','G(z)'),format='png')
+                plt.close(fig)
                 wandb.log({'D_loss': errD.item(), 'G_loss': errG.item()})
                 wandb.log({"Visualization": wandb.Image("{}/{}.png".format('./figures','G(z)'))})
 

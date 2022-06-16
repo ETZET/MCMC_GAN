@@ -13,14 +13,16 @@ from generative_model import DCGAN
 
 
 dataroot = "./data/samples_sep"
+savepath = "./model"
 workers = 1 
 batch_size = 128
 nc = 3
 nz = 100
 ngf = 64
 ndf = 64
-num_epochs = 10
-lr = 0.0002
+num_epochs = 100
+Glr = 0.0005
+Dlr= 0.0001
 beta1 = 0.5
 ngpu = 1
 
@@ -50,5 +52,5 @@ if __name__ == "__main__":
     wandb.init(project="mcmc-gan")
 
     torch.save(model.state_dict(),'./model/dcgan_untrained.model')
-    model.optimize(dataloader,epochs=num_epochs,lr=lr,scaler=scaler,device=device)
+    model.optimize(dataloader,epochs=num_epochs,Glr=Glr,Dlr=Dlr,scaler=scaler,device=device,savepath=savepath)
     torch.save(model.state_dict(),'./model/dcgan_trained.model')
