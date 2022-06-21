@@ -9,7 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 import seaborn as sns
 from process_data import *
-from generative_model import DCGAN, DCGAN_V2
+from generative_model import DCGAN, WGAN_GP
 
 
 dataroot = "./data/samples_sep"
@@ -42,15 +42,31 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
     print("currently using device:", device)
     # Training Loop
-    model = DCGAN(nlatent=nz,ngf=ngf,ndf=ndf).to(device)
+    # model = DCGAN(nlatent=nz,ngf=ngf,ndf=ndf).to(device)
+    #
+    # # check device and topology
+    # for n, p in model.named_parameters():
+    #     print(p.device, '', n)
+    #
+    # # data logging
+    # wandb.init(project="mcmc-gan")
+    #
+    # torch.save(model.state_dict(),'./model/dcgan_untrained.model')
+    # model.optimize(dataloader,epochs=num_epochs,Glr=Glr,Dlr=Dlr,betas=(beta1,0.999),scaler=scaler,device=device,savepath=savepath)
+    # torch.save(model.state_dict(),'./model/dcgan_trained.model')
+
+    model = WGAN_GP(device=device)
 
     # check device and topology
-    for n, p in model.named_parameters():
+    for n, p in model.G.named_parameters():
+        print(p.device, '', n)
+    for n, p in model.D.named_parameters():
         print(p.device, '', n)
 
     # data logging
     wandb.init(project="mcmc-gan")
 
-    torch.save(model.state_dict(),'./model/dcgan_untrained.model')
-    model.optimize(dataloader,epochs=num_epochs,Glr=Glr,Dlr=Dlr,betas=(beta1,0.999),scaler=scaler,device=device,savepath=savepath)
-    torch.save(model.state_dict(),'./model/dcgan_trained.model')
+    # torch.save(model.state_dict(), './model/dcgan_untrained.model')
+    model.optimize(dataloader, epochs=num_epochs, Glr=Glr, Dlr=Dlr, betas=(beta1, 0.999), scaler=scaler, device=device,
+                   savepath=savepath)
+    # torch.save(model.state_dict(), './model/dcgan_trained.model')
