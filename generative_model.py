@@ -6,6 +6,7 @@ import tqdm
 import time
 import wandb
 import pickle
+import numpy
 import matplotlib.pyplot as plt
 
 def get_circle_data(ndim=2,nsamples=100000,chain=0):
@@ -102,7 +103,7 @@ class DCGAN(nn.Module):
         fixed_noise = torch.randn(8, self.nlatent, 1, 1, device=device)
 
         # apply smoothing
-        real_label = 0.9
+        real_label = 0.7
         fake_label = 0
 
         optimizer_gen = torch.optim.Adam(self.gen.parameters(),lr=Glr,betas=betas)
@@ -114,7 +115,7 @@ class DCGAN(nn.Module):
         D_losses = []
         iters = 0
 
-    
+
         for epoch in range(epochs):
             for i, data in enumerate(dataloader):
                 tic = time.time()
@@ -124,6 +125,7 @@ class DCGAN(nn.Module):
                 ### real data batch
                 real_data = data.to(device)
                 b_size = real_data.size(0)
+                # real_label = numpy.random.uniform(low=0.7,high=1.0)
                 label = torch.full((b_size,), real_label, dtype=torch.float, device=device)
                 # Forward pass real batch through D
                 output = self.disc(real_data).view(-1)
@@ -149,6 +151,8 @@ class DCGAN(nn.Module):
                 optimizer_gen.zero_grad()
 
                 fake_data = self.gen(torch.randn(b_size,self.nlatent,1,1,device=device))
+                # real_label = numpy.random.uniform(low=0.7,high=1.0)
+                real_label = 1.0
                 label.fill_(real_label)
                 output = self.disc(fake_data).view(-1)
 
@@ -184,7 +188,7 @@ class DCGAN(nn.Module):
                 with torch.no_grad():
                     fake = self.gen(fixed_noise).detach().cpu()
                 fig, axes = plt.subplots(2,4,figsize=(22,8),dpi=100)
-                for i in range(4):  
+                for i in range(4):
                     real_data_cpu = real_data.detach().cpu()
                     axes[1][i].pcolormesh(scaler.inverse_transform(fake[i][0]))
                     axes[0][i].pcolormesh(scaler.inverse_transform(real_data_cpu[i][0]))
@@ -195,4 +199,4 @@ class DCGAN(nn.Module):
 
                 iters += 1
         return G_losses, D_losses
-    
+
