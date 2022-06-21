@@ -9,7 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 import seaborn as sns
 from process_data import *
-from generative_model import DCGAN
+from generative_model import DCGAN, DCGAN_V2
 
 
 dataroot = "./data/samples_sep"
@@ -21,8 +21,8 @@ nz = 100
 ngf = 64
 ndf = 64
 num_epochs = 100
-Glr = 0.0002
-Dlr= 0.0002
+Glr = 0.0001
+Dlr= 0.0004
 beta1 = 0.5
 ngpu = 1
 
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
     print("currently using device:", device)
     # Training Loop
-    model = DCGAN().to(device)
+    model = DCGAN(nlatent=nz,ngf=ngf,ndf=ndf).to(device)
 
     # check device and topology
     for n, p in model.named_parameters():
