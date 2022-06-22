@@ -53,6 +53,17 @@ class AfricaPatch_Flat(Dataset):
         sample[0, :, :] = torch.from_numpy(sample_scaled)
         return sample
 
+class Africa_Whole_Flat(Dataset):
+    def __init__(self, data):
+        self.data = data
+
+    def __len__(self):
+        return self.data.shape[0]
+
+    def __getitem__(self, idx):
+        sample_np = self.data[idx, :]
+        sample = torch.from_numpy(sample_np)
+        return sample
 
 class MinMaxScaler():
 
@@ -83,24 +94,22 @@ class MinMaxScaler():
 
 
 if __name__ == "__main__":
-    data = np.genfromtxt('./data/sample/Rayleigh_P30_flat.csv', delimiter=',', skip_header=True)
-
-    scaler = MinMaxScaler((32, 32))
-    scaler.fit(data)
-    scaler_file = open('./data/sample/scaler.pkl', 'wb')
-    pickle.dump(scaler, scaler_file)
-
-    # # load the precomputed scaler
-    # scaler_file = open('./data/sample/scaler.pkl', 'rb')
-    # scaler = pickle.load(scaler_file)
+    # data = np.genfromtxt('./data/sample/Rayleigh_P30_flat.csv', delimiter=',', skip_header=True)
     #
-    # path = os.path.join("./data/samples_sep", "{}_{}{}_{}.csv".format("Rayleigh", \
-    #                                                                   "P", "30", 20000))
-    # sample = np.genfromtxt(path, delimiter=",", skip_header=True)
-    # sample_scaled = scaler.transform(sample)
-    # sample_inverst = scaler.inverse_transform(sample_scaled)
-    # fig, axes = plt.subplots(1, 3, figsize=(15, 8))
-    # axes[0].pcolormesh(sample)
-    # axes[1].pcolormesh(sample_scaled)
-    # axes[2].pcolormesh(sample_inverst)
-    # plt.show()
+    # scaler = MinMaxScaler((32, 32))
+    # scaler.fit(data)
+    # scaler_file = open('./data/sample/scaler.pkl', 'wb')
+    # pickle.dump(scaler, scaler_file)
+
+    data = np.genfromtxt('./data/Rayleigh_P30_downsampled_flat.csv', delimiter=',', skip_header=True)
+    scaler = MinMaxScaler((1, data.shape[1]))
+    scaler.fit(data)
+
+    sample = data[200,:]
+    sample_scaled = scaler.transform(sample)
+    sample_inverst = scaler.inverse_transform(sample_scaled)
+    fig, axes = plt.subplots(1, 3, figsize=(15, 8))
+    axes[0].plot(sample)
+    axes[1].plot(sample_scaled)
+    axes[2].plot(sample_inverst)
+    plt.show()

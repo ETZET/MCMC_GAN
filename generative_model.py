@@ -9,6 +9,7 @@ import wandb
 import pickle
 import numpy
 import matplotlib
+import neural_networks as nns
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -298,7 +299,8 @@ class WGAN_GP(object):
         grad_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * lambda_term
         return grad_penalty
 
-    def optimize(self, dataloader, Glr=1e-4, Dlr=1e-4, epochs=10, betas=(0.5, 0.999), lambda_term = 10, device="cpu", scaler=None,
+    def optimize(self, dataloader, Glr=1e-4, Dlr=1e-4, epochs=10, betas=(0.5, 0.999), lambda_term=10, device="cpu",
+                 scaler=None,
                  savepath=None):
 
         # Initialize BCELoss function
@@ -310,8 +312,8 @@ class WGAN_GP(object):
         one = torch.tensor(1, dtype=torch.float).to(device)
         mone = torch.tensor(-1, dtype=torch.float).to(device)
 
-        optimizer_gen = torch.optim.Adam(self.G.parameters(),lr=Glr,betas=betas)
-        optimizer_disc = torch.optim.Adam(self.D.parameters(),lr=Dlr,betas=betas)
+        optimizer_gen = torch.optim.Adam(self.G.parameters(), lr=Glr, betas=betas)
+        optimizer_disc = torch.optim.Adam(self.D.parameters(), lr=Dlr, betas=betas)
 
         # Lists to keep track of progress
         d_loss_real = 0
@@ -341,8 +343,8 @@ class WGAN_GP(object):
                 d_loss_fake.backward(one)
 
                 ### gradient penalty
-                gradient_penalty = self.calculate_gradient_penalty(real_data, fake_data,lambda_term=lambda_term)
-                gradient_penalty.backward()
+                gradient_penalty = self.calculate_gradient_penalty(real_data, fake_data, lambda_term=lambda_term)
+                gradient_penalty.backward(one)
 
                 d_loss = d_loss_fake - d_loss_real + gradient_penalty
                 Wasserstein_D = d_loss_real - d_loss_fake
@@ -360,8 +362,8 @@ class WGAN_GP(object):
                 toc = time.time()
 
                 # Output training stats
-                wandb.watch(models=self.G, criterion=g_loss, log="gradients", log_freq=5)
-                wandb.watch(models=self.D, criterion=Wasserstein_D, log="gradients", log_freq=5)
+                wandb.watch(models=self.G, criterion=g_loss, log="gradients", log_freq=50)
+                wandb.watch(models=self.D, criterion=d_loss, log="gradients", log_freq=50)
                 if i % 2 == 0:
                     print(
                         '[%d/%d][%d/%d]\tLoss_D_real: %.4f\tLoss_D_fake: %.4f\tLoss_G: %.4f  Elapsed time per Epoch: %.4fs'
@@ -379,18 +381,108 @@ class WGAN_GP(object):
                     }, "{}/DCGAN_epoch{}.model".format(savepath, epoch))
 
                 ##### Statistics logging
-                if i % 50 == 0:
+                if epoch % 2 == 0:
                     with torch.no_grad():
                         fake = self.G(fixed_noise).detach().cpu()
-                    fig, axes = plt.subplots(4,8,figsize=(22,8),dpi=100)
+                    fig, axes = plt.subplots(4, 8, figsize=(22, 8), dpi=100)
                     axes = axes.flatten()
-                    for i in range(32):
-                        axes[i].pcolormesh(scaler.inverse_transform(fake[i][0]))
-                    fig.savefig("{}/{}.png".format('./figures','G(z)_WGAN'),format='png')
+                    for image_idx in range(32):
+                        axes[image_idx].pcolormesh(scaler.inverse_transform(fake[image_idx][0]))
+                    fig.savefig("{}/{}.png".format('./figures', 'G(z)_WGAN'), format='png')
                     plt.close(fig)
+                    wandb.log({"Visualization": wandb.Image("{}/{}.png".format('./figures', 'G(z)_WGAN'))})
 
-
-                wandb.log({'D_loss_real': d_loss_real,'D_loss_fake': d_loss_fake, 'G_loss': g_loss})
-                wandb.log({"Visualization": wandb.Image("{}/{}.png".format('./figures','G(z)_WGAN'))})
+                wandb.log({'D_loss_real': d_loss_real, 'D_loss_fake': d_loss_fake, 'G_loss': g_loss})
 
                 iters += 1
+
+
+class WGAN_SIMPLE(nn.Module):
+    def __init__(self, ndim, nhid=200, nlatent=100, device="cpu"):
+        super().__init__()
+
+        self.ndim = ndim
+        self.nlatent = nlatent
+        self.clip_value = 0.01
+        self.device = device
+
+        # Build Generator
+        layer1 = nns.create_layer_dict(self.nlatent, nhid, normalize=False, dropout=0.4, activation='leakyrelu')
+        layer2 = nns.create_layer_dict(nhid, nhid, normalize=False, dropout=0.4, activation='leakyrelu')
+        layer3 = nns.create_layer_dict(nhid, nhid, normalize=False, dropout=0.4, activation='leakyrelu')
+        layer4 = nns.create_layer_dict(nhid, ndim, normalize=False, dropout=0.0, activation=None)
+        gen_layers = [layer1, layer2, layer3, layer4]
+        self.gen = nns.mlp(gen_layers).to(device)
+
+        # Build Discriminator
+        layer1 = nns.create_layer_dict(ndim, nhid, normalize=False, dropout=0.0, activation='leakyrelu')
+        layer2 = nns.create_layer_dict(nhid, nhid, normalize=False, dropout=0.0, activation='leakyrelu')
+        layer3 = nns.create_layer_dict(nhid, nhid, normalize=False, dropout=0.0, activation='leakyrelu')
+        layer4 = nns.create_layer_dict(nhid, 1, normalize=False, dropout=0.0, activation=None)
+        disc_layers = [layer1, layer2, layer3, layer4]
+        self.disc = nns.mlp(disc_layers).to(device)
+
+    def optimize(self, dataloader, lr=1e-4, beta1=0.5, lambda_term=10, epochs=200, kkd=1, kkg=1, device="cpu"):
+
+        optimizer_gen = torch.optim.Adam(self.gen.parameters(), lr=lr, betas=(beta1,0.999))
+        optimizer_disc = torch.optim.Adam(self.disc.parameters(), lr=lr, betas=(beta1,0.999))
+
+        for epoch in range(epochs):
+            for i, data in enumerate(dataloader):
+                tic = time.time()
+                ### Update Discriminator
+                for k in range(kkd):
+                    optimizer_disc.zero_grad()
+
+                    real_data = data.to(device).float()
+                    b_size = real_data.size(0)
+                    fake_data = self.gen(torch.randn(b_size, self.nlatent, device=device).float())
+
+                    gradient_penalty = self.calculate_gradient_penalty(real_data,fake_data,lambda_term)
+                    D_loss_real = torch.mean(self.disc(real_data))
+                    D_loss_fake = torch.mean(self.disc(fake_data))
+                    score_disc = -D_loss_real + D_loss_fake + gradient_penalty
+
+                    score_disc.backward()
+                    optimizer_disc.step()
+
+                ### Update Generator
+                for k in range(kkg):
+                    optimizer_gen.zero_grad()
+
+                    real_data = data.to(device)
+                    b_size = real_data.size(0)
+                    fake_data = self.gen(torch.randn(b_size, self.nlatent, device=device))
+                    score_gen = -torch.mean(self.disc(fake_data))
+                    score_gen.backward()
+
+                    optimizer_gen.step()
+
+                toc = time.time()
+                # logging
+                if i % 2 == 0:
+                    print(
+                        '[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\t Wasserstein Distance: %.4f/t  Elapsed time per Iteration: %.4fs'
+                        % (epoch, epochs, i, len(dataloader),
+                           score_disc, score_gen, (D_loss_real-D_loss_fake), (toc - tic)))
+                    wandb.log({'D_loss': score_disc, 'Wasserstein Distance': (D_loss_real-D_loss_fake), 'G_loss': score_gen})
+
+    def calculate_gradient_penalty(self, real_images, fake_images, lambda_term):
+        batch_size = real_images.shape[0]
+        eta = torch.FloatTensor(batch_size, 1).uniform_(0, 1)
+        eta = eta.expand(batch_size, real_images.size(1)).to(self.device)
+
+        interpolated = eta * real_images + ((1 - eta) * fake_images).to(self.device)
+
+        # define it to calculate gradient
+        interpolated = Variable(interpolated, requires_grad=True)
+
+        # calculate probability of interpolated examples
+        prob_interpolated = self.disc(interpolated.float())
+
+        # calculate gradients of probabilities with respect to examples
+        gradients = autograd.grad(outputs=prob_interpolated, inputs=interpolated,
+                                  grad_outputs=torch.ones(prob_interpolated.size()).to(self.device),
+                                  create_graph=True, retain_graph=True)[0]
+        grad_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * lambda_term
+        return grad_penalty
