@@ -394,6 +394,6 @@ class WGAN_GP(object):
 
 
                 wandb.log({'D_loss_real': d_loss_real,'D_loss_fake': d_loss_fake, 'G_loss': g_loss})
-                wandb.log({"Visualization": wandb.Image("{}/{}.png".format('./figures','G(z)'))})
+                wandb.log({"Visualization": wandb.Image("{}/{}.png".format('./figures','G(z)_WGAN'))})
 
                 iters += 1

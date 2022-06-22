@@ -16,13 +16,12 @@ dataroot = "./data/samples_sep"
 savepath = "./model"
 workers = 1 
 batch_size = 128
-nc = 3
 nz = 100
 ngf = 64
 ndf = 64
-num_epochs = 100
-Glr = 0.0001
-Dlr= 0.0004
+num_epochs = 200
+Glr = 0.0002
+Dlr= 0.0002
 beta1 = 0.5
 ngpu = 1
 
@@ -32,8 +31,7 @@ if __name__ == "__main__":
     scaler_file = open('./data/sample/scaler.pkl','rb')
     scaler = pickle.load(scaler_file)
 
-    map_dataset = AfricaPatch(root_dir=dataroot,velName="Rayleigh",\
-    velType="P",velPd="30",scaler=scaler, num_files=45000)
+    map_dataset = AfricaPatch_Flat('./data/Rayleigh_P30_flat.csv',scaler)
 
     dataloader = DataLoader(map_dataset, batch_size=batch_size,
                         shuffle=True, num_workers=workers)
@@ -64,7 +62,7 @@ if __name__ == "__main__":
         print(p.device, '', n)
 
     # data logging
-    wandb.init(project="mcmc-gan")
+    wandb.init(project="mcmc-wgan")
 
     # torch.save(model.state_dict(), './model/dcgan_untrained.model')
     model.optimize(dataloader, epochs=num_epochs, Glr=Glr, Dlr=Dlr, betas=(beta1, 0.999), scaler=scaler, device=device,
