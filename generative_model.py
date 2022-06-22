@@ -302,11 +302,6 @@ class WGAN_GP(object):
                  savepath=None):
 
         # Initialize BCELoss function
-        loss = nn.BCELoss()
-
-        wandb.watch(models=self.G, criterion=loss, log="gradients", log_freq=5)
-        wandb.watch(models=self.D, criterion=loss, log="gradients", log_freq=5)
-
         # Create batch of latent vectors that we will use to visualize
         #  the progression of the generator
         fixed_noise = torch.randn(32, self.G.nlatent, 1, 1, device=device)
@@ -365,6 +360,8 @@ class WGAN_GP(object):
                 toc = time.time()
 
                 # Output training stats
+                wandb.watch(models=self.G, criterion=g_loss, log="gradients", log_freq=5)
+                wandb.watch(models=self.D, criterion=Wasserstein_D, log="gradients", log_freq=5)
                 if i % 2 == 0:
                     print(
                         '[%d/%d][%d/%d]\tLoss_D_real: %.4f\tLoss_D_fake: %.4f\tLoss_G: %.4f  Elapsed time per Epoch: %.4fs'
