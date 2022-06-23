@@ -462,10 +462,18 @@ class WGAN_SIMPLE(nn.Module):
                 # logging
                 if i % 2 == 0:
                     print(
-                        '[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\t Wasserstein Distance: %.4f/t  Elapsed time per Iteration: %.4fs'
+                        '[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\t Wasserstein Distance: %.4f\t  Elapsed time per Iteration: %.4fs'
                         % (epoch, epochs, i, len(dataloader),
                            score_disc, score_gen, (D_loss_real-D_loss_fake), (toc - tic)))
                     wandb.log({'D_loss': score_disc, 'Wasserstein Distance': (D_loss_real-D_loss_fake), 'G_loss': score_gen})
+            if epoch % 10 ==0 or epoch == epochs-1:
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': self.state_dict(),
+                    'gen_optimizer_state_dict': optimizer_gen.state_dict(),
+                    'dist_optimizer_state_dict': optimizer_disc.state_dict(),
+                }, "{}/WGAN_Simple_epoch{}.model".format('./model', epoch))
+
 
     def calculate_gradient_penalty(self, real_images, fake_images, lambda_term):
         batch_size = real_images.shape[0]

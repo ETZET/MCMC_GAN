@@ -52,15 +52,15 @@ def train_DCGAN_W_GP():
                    savepath=savepath)
 
 def train_WGAN_SIMPLE(recompute_scaler=True):
-    data = np.genfromtxt('./data/Rayleigh_P30_downsampled_flat.csv', delimiter=',', skip_header=True)
+    data = np.genfromtxt('./data/Rayleigh_P30_downsampled_flat_extended.csv', delimiter=',', skip_header=True)
 
     if recompute_scaler:
         scaler = MinMaxScaler((1,data.shape[1]))
         scaler.fit(data)
-        scaler_file = open('./data/whole_scaler.pkl', 'wb')
+        scaler_file = open('./data/whole_scaler_extended.pkl', 'wb')
         pickle.dump(scaler, scaler_file)
     else:
-        scaler_file = open('./data/whole_scaler.pkl', 'rb')
+        scaler_file = open('./data/whole_scaler_extened.pkl', 'rb')
         scaler = pickle.load(scaler_file)
 
     data = scaler.transform(data)
@@ -74,13 +74,22 @@ def train_WGAN_SIMPLE(recompute_scaler=True):
 
     model = WGAN_SIMPLE(ndim=data.shape[1],device=device)
 
-    wandb.init(project="mcmc-wgan-simple")
+    config = dict(
+        learning_rate=0.0002,
+        momentum=0.5,
+        training_epoch = 200,
+        architecture = "WGAN_MLP",
+        data = "Rayleigh P30 last 3 runs",
+        device = device
+    )
+    wandb.init(project="mcmc-wgan-simple",
+               notes = "hyperparameter tuning",
+               config=config)
 
-    model.optimize(dataloader, epochs=num_epochs, lr=Glr, beta1=beta1, device=device)
+    model.optimize(dataloader, epochs=config['training_epoch'], lr=config['learning_rate'], beta1=config['momentum'], device=device)
 
 
 
 
 if __name__ == "__main__":
-
-    train_WGAN_SIMPLE(recompute_scaler=False)
+    train_WGAN_SIMPLE(recompute_scaler=True)
