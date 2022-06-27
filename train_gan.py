@@ -53,6 +53,17 @@ def train_DCGAN_W_GP():
 
 def train_WGAN_SIMPLE(recompute_scaler=True):
     data = np.genfromtxt('./data/Rayleigh_P30_downsampled_flat_extended.csv', delimiter=',', skip_header=True)
+    device = torch.device("cuda:0" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
+
+    config = dict(
+        learning_rate=0.0002,
+        momentum=0.5,
+        training_epoch=200,
+        batch_size = 1024,
+        architecture="WGAN_MLP",
+        data="Rayleigh P30 last 3 runs",
+        device=device
+    )
 
     if recompute_scaler:
         scaler = MinMaxScaler((1,data.shape[1]))
@@ -66,22 +77,14 @@ def train_WGAN_SIMPLE(recompute_scaler=True):
     data = scaler.transform(data)
 
     map_dataset = Africa_Whole_Flat(data)
-    dataloader = DataLoader(map_dataset, batch_size=batch_size,
+    dataloader = DataLoader(map_dataset, batch_size=config['batch_size'],
                             shuffle=True, num_workers=workers)
 
-    device = torch.device("cuda:0" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
     print("currently using device:", device)
 
     model = WGAN_SIMPLE(ndim=data.shape[1],device=device)
 
-    config = dict(
-        learning_rate=0.0002,
-        momentum=0.5,
-        training_epoch = 200,
-        architecture = "WGAN_MLP",
-        data = "Rayleigh P30 last 3 runs",
-        device = device
-    )
+
     wandb.init(project="mcmc-wgan-simple",
                notes = "hyperparameter tuning",
                config=config)
