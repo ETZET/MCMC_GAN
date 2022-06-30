@@ -1,98 +1,81 @@
-import os
+"""
+Title: GAN Training Script
+Author: Enting Zhou
+Date: 06/15/2022
+Availability: https://github.com/ETZET/MCMC_GAN
+"""
+import os.path
 import pickle
+import argparse
 import torch
-import pandas as pd
+from torch.utils.data import DataLoader
 import numpy as np
 import wandb
-import matplotlib.pyplot as plt
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
-import seaborn as sns
-from process_data import *
-from generative_model import DCGAN, WGAN_GP, WGAN_SIMPLE
-
-dataroot = "./data/samples_sep"
-savepath = "./model"
-workers = 1
-batch_size = 128
-nz = 100
-ngf = 64
-ndf = 64
-num_epochs = 200
-Glr = 0.0002
-Dlr = 0.0002
-beta1 = 0.5
-ngpu = 1
+from process_data import Africa_Whole_Flat, MinMaxScaler
+from generative_model import WGAN_SIMPLE
 
 
-def train_DCGAN_W_GP():
-    data = np.genfromtxt('./data/sample/Rayleigh_P30_flat.csv', delimiter=',', skip_header=True)
-    scaler = MinMaxScaler((32, 32))
-    scaler.fit(data)
-
-    map_dataset = AfricaPatch_Flat('./data/Rayleigh_P30_flat.csv', scaler)
-    dataloader = DataLoader(map_dataset, batch_size=batch_size,
-                            shuffle=True, num_workers=workers)
-
+def train_wgan_simple(args):
+    """
+    user training program
+    :param args: Namespace, provide training parameters
+    """
+    # read data
+    data = np.genfromtxt(args.input_path, delimiter=',', skip_header=True)
     device = torch.device("cuda:0" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
     print("currently using device:", device)
 
-    model = WGAN_GP(device=device)
-
-    # check device and topology
-    for n, p in model.G.named_parameters():
-        print(p.device, '', n)
-    for n, p in model.D.named_parameters():
-        print(p.device, '', n)
-
-    # data logging
-    wandb.init(project="mcmc-wgan")
-
-    model.optimize(dataloader, epochs=num_epochs, Glr=Glr, Dlr=Dlr, betas=(beta1, 0.999), scaler=scaler, device=device,
-                   savepath=savepath)
-
-def train_WGAN_SIMPLE(recompute_scaler=True):
-    data = np.genfromtxt('./data/Rayleigh_P30_downsampled_flat_extended.csv', delimiter=',', skip_header=True)
-    device = torch.device("cuda:0" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
-
     config = dict(
-        learning_rate=0.0002,
-        momentum=0.5,
-        training_epoch=200,
-        batch_size = 128,
+        learning_rate=args.learning_rate,
+        momentum=args.momentum,
+        training_epoch=args.epochs,
+        batch_size=args.batch_size,
         architecture="WGAN_MLP",
-        data="Rayleigh P30 last 3 runs",
+        data=args.input_path,
         device=device
     )
 
-    if recompute_scaler:
-        scaler = MinMaxScaler((1,data.shape[1]))
-        scaler.fit(data)
-        scaler_file = open('./data/whole_scaler_extended.pkl', 'wb')
-        pickle.dump(scaler, scaler_file)
-    else:
-        scaler_file = open('./data/whole_scaler_extened.pkl', 'rb')
-        scaler = pickle.load(scaler_file)
-
+    # Normalize data to range of (-1,1)
+    print("Scaling input data...")
+    scaler = MinMaxScaler()
+    scaler.fit(data)
+    with open('./data/whole_scaler_extended.pkl', 'wb') as f:
+        pickle.dump(scaler,f)
     data = scaler.transform(data)
 
+    # construct dataset and dataloader for batch training
     map_dataset = Africa_Whole_Flat(data)
     dataloader = DataLoader(map_dataset, batch_size=config['batch_size'],
                             shuffle=True, num_workers=workers)
 
-    print("currently using device:", device)
+    # initialize model
+    model = WGAN_SIMPLE(ndim=data.shape[1], device=device)
 
-    model = WGAN_SIMPLE(ndim=data.shape[1],device=device)
+    if args.use_wandb:
+        wandb.init(project="mcmc-wgan-simple",
+                   config=config)
+
+    # optimization
+    if not os.path.exists(args.output_path):
+        os.makedirs(args.output_path)
+    model.optimize(dataloader,args.output_path, epochs=config['training_epoch'], lr=config['learning_rate'], beta1=config['momentum'],
+                   device=device)
 
 
-    wandb.init(project="mcmc-wgan-simple",
-               notes = "hyperparameter tuning",
-               config=config)
-
-    model.optimize(dataloader, epochs=config['training_epoch'], lr=config['learning_rate'], beta1=config['momentum'], device=device)
-
-
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-n", "--name", type=str, default="GAN", help="Model Name")
+    parser.add_argument("-i", "--input-path", type=str, required=True, help="Model Name")
+    parser.add_argument("-o", "--output-path", type=str,required=True, help="Model Name")
+    parser.add_argument("--epochs", type=int, default=200, help="Model Name")
+    parser.add_argument("-lr", "--learning-rate", type=float, default=0.0002, help="Model Name")
+    parser.add_argument("-b", "--batch-size", type=int, default=128, help="Model Name")
+    parser.add_argument("--momentum", type=float, default=0.5, help="Model Name")
+    parser.add_argument("--use-wandb", type=bool, default=False, help="Model Name")
+    args = parser.parse_args()
+    return args
 
 
 if __name__ == "__main__":
-    train_WGAN_SIMPLE(recompute_scaler=True)
+    args = parse_arguments()
+    train_wgan_simple(args)

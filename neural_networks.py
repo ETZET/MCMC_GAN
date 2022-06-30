@@ -1,3 +1,12 @@
+""" 
+Title: MLP Pytorch Source Code
+Author: Scheiter, M., Valentine, A., Sambridge, M.
+Date: 2022
+Availability: https://github.com/MScheiter/gan_mcmc
+Citation: Scheiter, M., Valentine, A., Sambridge, M., 2022. 
+Upscaling and downscaling Monte Carlo ensembles with generative models, Geophys. J. Int., ggac100.
+"""
+
 import torch
 from torch import nn
 
