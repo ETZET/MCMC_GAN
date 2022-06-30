@@ -44,23 +44,53 @@ class WGAN_SIMPLE(nn.Module):
         self.nlatent = nlatent
         self.device = device
 
-        # Build Generator
-        layer1 = nns.create_layer_dict(self.nlatent, nhid, normalize=False, dropout=0.4, activation='leakyrelu')
-        layer2 = nns.create_layer_dict(nhid, nhid, normalize=False, dropout=0.4, activation='leakyrelu')
-        layer3 = nns.create_layer_dict(nhid, nhid, normalize=False, dropout=0.4, activation='leakyrelu')
-        layer4 = nns.create_layer_dict(nhid, ndim, normalize=False, dropout=0.0, activation=None)
-        gen_layers = [layer1, layer2, layer3, layer4]
-        self.gen = nns.mlp(gen_layers).to(device)
+        # # Build Generator
+        # layer1 = nns.create_layer_dict(self.nlatent, nhid, normalize=False, dropout=0.4, activation='leakyrelu')
+        # layer2 = nns.create_layer_dict(nhid, nhid, normalize=False, dropout=0.4, activation='leakyrelu')
+        # layer3 = nns.create_layer_dict(nhid, nhid, normalize=False, dropout=0.4, activation='leakyrelu')
+        # layer4 = nns.create_layer_dict(nhid, ndim, normalize=False, dropout=0.0, activation=None)
+        # gen_layers = [layer1, layer2, layer3, layer4]
+        # self.gen = nns.mlp(gen_layers).to(device)
 
-        # Build Discriminator
-        layer1 = nns.create_layer_dict(ndim, nhid, normalize=False, dropout=0.0, activation='leakyrelu')
-        layer2 = nns.create_layer_dict(nhid, nhid, normalize=False, dropout=0.0, activation='leakyrelu')
-        layer3 = nns.create_layer_dict(nhid, nhid, normalize=False, dropout=0.0, activation='leakyrelu')
-        layer4 = nns.create_layer_dict(nhid, 1, normalize=False, dropout=0.0, activation=None)
-        disc_layers = [layer1, layer2, layer3, layer4]
-        self.disc = nns.mlp(disc_layers).to(device)
+        # # Build Discriminator
+        # layer1 = nns.create_layer_dict(ndim, nhid, normalize=False, dropout=0.0, activation='leakyrelu')
+        # layer2 = nns.create_layer_dict(nhid, nhid, normalize=False, dropout=0.0, activation='leakyrelu')
+        # layer3 = nns.create_layer_dict(nhid, nhid, normalize=False, dropout=0.0, activation='leakyrelu')
+        # layer4 = nns.create_layer_dict(nhid, 1, normalize=False, dropout=0.0, activation=None)
+        # disc_layers = [layer1, layer2, layer3, layer4]
+        # self.disc = nns.mlp(disc_layers).to(device)
+        
+        self.gen = nn.Sequential(
+            nn.Linear(self.nlatent,nhid),
+            nn.LeakyReLU(0.1),
+            nn.Dropout(0.4),
+            nn.Linear(nhid,nhid),
+            nn.LeakyReLU(0.1),
+            nn.Dropout(0.4),
+            nn.Linear(nhid,nhid),
+            nn.LeakyReLU(0.1),
+            nn.Dropout(0.4),
+            nn.Linear(nhid,ndim),
+        )
+        
+        self.disc = nn.Sequential(
+            nn.Linear(self.ndim,nhid),
+            nn.LeakyReLU(0.1),
+            nn.Linear(nhid,nhid),
+            nn.LeakyReLU(0.1),
+            nn.Linear(nhid,nhid),
+            nn.LeakyReLU(0.1),
+            nn.Linear(nhid,1),
+        )
+        
+        self.gen.apply(init_weights)
+        self.disc.apply(init_weights)
+        
+        self.gen.to(device)
+        self.disc.to(device)
+            
 
-    def optimize(self, dataloader, output_path, lr=1e-4, beta1=0.5, lambda_term=10, epochs=200, kkd=1, kkg=1, device="cpu"):
+    def optimize(self, dataloader, output_path, use_wandb=False, lr=1e-4, beta1=0.5, lambda_term=10, epochs=200, kkd=1, kkg=1, device="cpu"):
 
         optimizer_gen = torch.optim.Adam(self.gen.parameters(), lr=lr, betas=(beta1, 0.999))
         optimizer_disc = torch.optim.Adam(self.disc.parameters(), lr=lr, betas=(beta1, 0.999))
@@ -103,14 +133,18 @@ class WGAN_SIMPLE(nn.Module):
                         '[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\t Wasserstein Distance: %.4f\t  Elapsed time per Iteration: %.4fs'
                         % (epoch, epochs, i, len(dataloader),
                            score_disc, score_gen, (D_loss_real - D_loss_fake), (toc - tic)))
-                    wandb.log({'D_loss': score_disc, 'Wasserstein Distance': (D_loss_real - D_loss_fake),
-                               'G_loss': score_gen})
+                    if use_wandb:
+                        wandb.log({'D_loss': score_disc, 'Wasserstein Distance': (D_loss_real - D_loss_fake),
+                                   'G_loss': score_gen})
             # model saving
+            model_save_path = os.path.join(output_path,"model")
+            if not os.path.exists(model_save_path):
+                os.mkdir(model_save_path)
             if epoch % 10 == 0 or epoch == epochs - 1:
                 torch.save({
                     'epoch': epoch,
                     'model_state_dict': self.state_dict(),
-                }, "{}/model_epoch{}.pth".format(os.path.join(output_path,"model"), epoch))
+                }, "{}/model_epoch{}.pth".format(model_save_path, epoch))
 
     def calculate_gradient_penalty(self, real_images, fake_images, lambda_term):
         batch_size = real_images.shape[0]
@@ -131,3 +165,8 @@ class WGAN_SIMPLE(nn.Module):
                                   create_graph=True, retain_graph=True)[0]
         grad_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * lambda_term
         return grad_penalty
+
+def init_weights(m):
+    if type(m) == nn.Linear:
+        torch.nn.init.xavier_uniform_(m.weight)
+        m.bias.data.fill_(0.01)

@@ -21,8 +21,9 @@ def train_wgan_simple(args):
     :param args: Namespace, provide training parameters
     """
     # read data
+    print("Reading Data...")
     data = np.genfromtxt(args.input_path, delimiter=',', skip_header=True)
-    device = torch.device("cuda:0" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
+    device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
     print("currently using device:", device)
 
     config = dict(
@@ -39,14 +40,14 @@ def train_wgan_simple(args):
     print("Scaling input data...")
     scaler = MinMaxScaler()
     scaler.fit(data)
-    with open('./data/whole_scaler_extended.pkl', 'wb') as f:
+    with open(os.path.join(args.output_path,'whole_scaler_extended.pkl'), 'wb') as f:
         pickle.dump(scaler,f)
     data = scaler.transform(data)
 
     # construct dataset and dataloader for batch training
     map_dataset = Africa_Whole_Flat(data)
     dataloader = DataLoader(map_dataset, batch_size=config['batch_size'],
-                            shuffle=True, num_workers=workers)
+                            shuffle=True, num_workers=1)
 
     # initialize model
     model = WGAN_SIMPLE(ndim=data.shape[1], device=device)
@@ -58,7 +59,7 @@ def train_wgan_simple(args):
     # optimization
     if not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
-    model.optimize(dataloader,args.output_path, epochs=config['training_epoch'], lr=config['learning_rate'], beta1=config['momentum'],
+    model.optimize(dataloader,args.output_path, args.use_wandb, epochs=config['training_epoch'], lr=config['learning_rate'], beta1=config['momentum'],
                    device=device)
 
 

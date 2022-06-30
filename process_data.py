@@ -24,11 +24,11 @@ class MinMaxScaler():
     A data scaler that scale data to given range and scale back to initial range
     """
 
-    def __init__(self):
+    def __init__(self, range=(-1,1)):
         self.min = np.empty(0)
         self.max = np.empty(0)
         self.diff = np.empty(0)
-        self.range = None
+        self.range = range
 
     def fit(self, data: np.ndarray):
         """
@@ -39,16 +39,15 @@ class MinMaxScaler():
         max = np.max(data, axis=0)
         self.diff = max - self.min
 
-    def transform(self, data: np.ndarray, range=(-1, 1)):
+    def transform(self, data: np.ndarray):
         """
         Transform the input data to range, using previous fitted min and max
         :param data: np.ndarray, expected arrangement: row as instances of data and column as features of data
         :param range: default to (-1,1)
         :return: data scaled to the range of input or (-1,1) by default
         """
-        self.range = range
-        range_min = range[0]
-        range_max = range[1]
+        range_min = self.range[0]
+        range_max = self.range[1]
         data_std = (data - self.min) / self.diff
         data_scaled = data_std * (range_max - range_min) + range_min
         return data_scaled
