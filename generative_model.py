@@ -13,10 +13,8 @@ from torch import autograd
 import time
 import wandb
 import matplotlib
-import neural_networks as nns
 
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 
 
 class WGAN_SIMPLE(nn.Module):
@@ -43,22 +41,6 @@ class WGAN_SIMPLE(nn.Module):
         self.ndim = ndim
         self.nlatent = nlatent
         self.device = device
-
-        # # Build Generator
-        # layer1 = nns.create_layer_dict(self.nlatent, nhid, normalize=False, dropout=0.4, activation='leakyrelu')
-        # layer2 = nns.create_layer_dict(nhid, nhid, normalize=False, dropout=0.4, activation='leakyrelu')
-        # layer3 = nns.create_layer_dict(nhid, nhid, normalize=False, dropout=0.4, activation='leakyrelu')
-        # layer4 = nns.create_layer_dict(nhid, ndim, normalize=False, dropout=0.0, activation=None)
-        # gen_layers = [layer1, layer2, layer3, layer4]
-        # self.gen = nns.mlp(gen_layers).to(device)
-
-        # # Build Discriminator
-        # layer1 = nns.create_layer_dict(ndim, nhid, normalize=False, dropout=0.0, activation='leakyrelu')
-        # layer2 = nns.create_layer_dict(nhid, nhid, normalize=False, dropout=0.0, activation='leakyrelu')
-        # layer3 = nns.create_layer_dict(nhid, nhid, normalize=False, dropout=0.0, activation='leakyrelu')
-        # layer4 = nns.create_layer_dict(nhid, 1, normalize=False, dropout=0.0, activation=None)
-        # disc_layers = [layer1, layer2, layer3, layer4]
-        # self.disc = nns.mlp(disc_layers).to(device)
         
         self.gen = nn.Sequential(
             nn.Linear(self.nlatent,nhid),
