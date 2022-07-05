@@ -6,3 +6,8 @@ model
 output
 wandb
 
+sanity_check.py
+reqirements.txt
+
+output*
+.vscode

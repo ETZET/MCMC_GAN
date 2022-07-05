@@ -4,15 +4,20 @@ Author: Enting Zhou
 Date: 06/15/2022
 Availability: https://github.com/ETZET/MCMC_GAN
 """
+from dis import dis
 import os.path
 
 import torch
 from torch import nn
 from torch.autograd import Variable
 from torch import autograd
+from process_data import Africa_Whole_Flat, MinMaxScaler
+from torch.utils.data import DataLoader
+import numpy as np
 import time
 import wandb
 import matplotlib
+from scipy.stats import wasserstein_distance as EMD
 
 matplotlib.use('Agg')
 
@@ -72,19 +77,25 @@ class WGAN_SIMPLE(nn.Module):
         self.disc.to(device)
             
 
-    def optimize(self, dataloader, output_path, use_wandb=False, lr=1e-4, beta1=0.5, lambda_term=10, epochs=200, kkd=1, kkg=1, device="cpu"):
+    def optimize(self, data, output_path, batch_size=128, use_wandb=False, lr=1e-4,
+                 beta1=0.5, lambda_term=10, epochs=200, kkd=1, kkg=1, device="cpu"):
+        
+        # construct dataset and dataloader for batch training
+        map_dataset = Africa_Whole_Flat(data)
+        dataloader = DataLoader(map_dataset, batch_size=batch_size,
+                                shuffle=True, num_workers=1)
 
         optimizer_gen = torch.optim.Adam(self.gen.parameters(), lr=lr, betas=(beta1, 0.999))
         optimizer_disc = torch.optim.Adam(self.disc.parameters(), lr=lr, betas=(beta1, 0.999))
 
         for epoch in range(epochs):
-            for i, data in enumerate(dataloader):
+            for i, data_slice in enumerate(dataloader):
                 tic = time.time()
                 # Update Discriminator
-                for k in range(kkd):
+                for _ in range(kkd):
                     optimizer_disc.zero_grad()
 
-                    real_data = data.to(device).float()
+                    real_data = data_slice.to(device).float()
                     b_size = real_data.size(0)
                     fake_data = self.gen(torch.randn(b_size, self.nlatent, device=device).float())
 
@@ -97,10 +108,10 @@ class WGAN_SIMPLE(nn.Module):
                     optimizer_disc.step()
 
                 # Update Generator
-                for k in range(kkg):
+                for _ in range(kkg):
                     optimizer_gen.zero_grad()
 
-                    real_data = data.to(device)
+                    real_data = data_slice.to(device)
                     b_size = real_data.size(0)
                     fake_data = self.gen(torch.randn(b_size, self.nlatent, device=device))
                     score_gen = -torch.mean(self.disc(fake_data))
@@ -123,6 +134,9 @@ class WGAN_SIMPLE(nn.Module):
             if not os.path.exists(model_save_path):
                 os.mkdir(model_save_path)
             if epoch % 10 == 0 or epoch == epochs - 1:
+                avg_diff,std_diff,dist = eval(self,data)
+                print("average difference: {:.4f}/pixel, std difference: {:.4f}/pixel, \
+                    EMD distance: {:.4f}/pixel".format(avg_diff,std_diff,dist))
                 torch.save({
                     'epoch': epoch,
                     'model_state_dict': self.state_dict(),
@@ -147,6 +161,36 @@ class WGAN_SIMPLE(nn.Module):
                                   create_graph=True, retain_graph=True)[0]
         grad_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * lambda_term
         return grad_penalty
+
+def eval(model, data):
+    dim = data.shape[1]
+    
+    # generate fake data using Generator
+    fake_data = np.zeros((50000,dim))
+    for i in range(500):
+        left_idx = 100 * i
+        right_idx = 100 * (i+1)
+        with torch.no_grad():
+            fake_batch = model.gen(torch.randn(100, model.nlatent, device="cpu")).detach().numpy()
+        fake_data[left_idx:right_idx,:] = fake_batch
+    # compare mean 
+    real_avg = np.mean(data,axis=0)
+    fake_avg = np.mean(fake_data,axis=0)
+    avg_diff_pixel = np.sum(np.absolute(real_avg-fake_avg))/dim
+    # compare std
+    real_std = np.std(data,axis=0)
+    fake_std = np.std(fake_data,axis=0)
+    std_diff_pixel = np.sum(np.absolute(real_std-fake_std))/dim
+    # calculate EMD distance
+    distance = np.zeros(dim)
+    for i in range(dim):
+        distance[i] = EMD(data[:,i],fake_data[:,i])
+    emd_dist_pixel = np.sum(distance)/dim
+    
+    return avg_diff_pixel,std_diff_pixel,emd_dist_pixel
+    
+    
+    
 
 def init_weights(m):
     if type(m) == nn.Linear:
