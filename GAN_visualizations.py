@@ -25,6 +25,7 @@ from matplotlib.patches import Polygon as MplPolygon
 import shapefile
 import pdb
 import cartopy.feature as cfeature
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 cratons = sio.loadmat('/scratch/tolugboj_lab/Prj6_AfrTomography/2_Data/geoData/cratons/AfricanCratons.mat')
 cratons = [cratons['Congo'],cratons['Kala'],cratons['Sahara'],cratons['Tanza'],cratons['West'],cratons['Zim']]
@@ -67,28 +68,16 @@ fake_std = np.std(fake_data_scaled,axis=0)
 fake_skew = skew(fake_data_scaled,axis=0)
 fake_kurt = kurtosis(fake_data_scaled,axis=0)
 
+indx = []
+for i in range(len(cord)):
+    indx.append(np.sqrt((cord[i][0] - [25, -25][0])**2 + (cord[i][1] - [25, -25][1])**2) < 1)  
+    
 data_pandas = pd.DataFrame(data)
 data_cov = data_pandas.cov()
 fake_pandas = pd.DataFrame(fake_data_scaled)
 fake_cov = fake_pandas.cov()
-
-
-#Download Africa Mask
-file = pooch.retrieve(
-    "https://pubs.usgs.gov/of/2006/1187/basemaps/continents/continents.zip", None
-)
-
-continents = gp.read_file("zip://" + file)
-
-lon = np.linspace(min(x),max(x),1000)
-lat = np.linspace(min(y),max(y),1000)
-
-#lon = np.arange(min(x), max(x))
-#lat = np.arange(min(y), max(y))
-Africa = continents[continents['CONTINENT']=='Africa']
-mask = regionmask.mask_geopandas(Africa,lon,lat)
-#mask.plot()
-
+point_spread_real = np.array(data_cov[indx].iloc[1,:])
+point_spread_fake = np.array(fake_cov[indx].iloc[1,:])
 #Sort by LON and interpolate w/ Cubic Spline
 cord_pd = pd.DataFrame(cord)
 cord_pd['point_spread_real'] = point_spread_real
@@ -106,7 +95,10 @@ cord_pd['fake_kurt'] = fake_kurt
 
 
 
-
+cmap_mean = 'seismic'
+cmap_std = 'Reds'
+cmap_skew = 'PiYG'
+cmap_kurt = 'RdBu'
 cord_pd.columns = ['lon','lat','ps_real','ps_fake','real_mean','fake_mean','real_std','fake_std','real_skew','fake_skew','real_kurt','fake_kurt']
 cord_pd_sorted = cord_pd.sort_values('lon')
 x = cord_pd_sorted.lon
@@ -115,6 +107,23 @@ lllat = min(y)
 lllon = min(x)
 urlat =  max(y)
 urlon = max(x)
+#Download Africa Mask
+file = pooch.retrieve(
+    "https://pubs.usgs.gov/of/2006/1187/basemaps/continents/continents.zip", None
+)
+
+continents = gp.read_file("zip://" + file)
+
+lon = np.linspace(min(x),max(x),1000)
+lat = np.linspace(min(y),max(y),1000)
+
+#lon = np.arange(min(x), max(x))
+#lat = np.arange(min(y), max(y))
+Africa = continents[continents['CONTINENT']=='Africa']
+mask = regionmask.mask_geopandas(Africa,lon,lat)
+#mask.plot()
+
+
 #m = Basemap(llcrnrlat=lllat,
 #urcrnrlat=urlat,
 #llcrnrlon=lllon,
@@ -162,8 +171,7 @@ max_kurt = round(max(real_kurt),2)
 #Plot Proposal Summary Plot
 #Big Plot
 
-point_spread_real = np.array(data_cov[indx].iloc[1,:])
-point_spread_fake = np.array(fake_cov[indx].iloc[1,:])
+
 x=cord[:,0]
 y=cord[:,1]
 z_mean = [real_mean,fake_mean]
@@ -343,3 +351,113 @@ axes6.scatter(x[indx][1],y[indx][1],label=None,marker='*',color='yellow',zorder=
 for craton in cratons:
         axes6.plot(craton[:,1],craton[:,0],color='black',linewidth=.6)
         axes6.plot(craton[:,1],craton[:,0],color='black',linewidth=.6)
+
+        
+        
+        
+        
+        #Subplots
+        
+        
+cmap_mean = 'RdBu'
+cmap_std = 'Reds'
+cmap_skew = 'RdGy'
+cmap_kurt = 'Greens'
+x = cord[:,0]
+y = cord[:,1]
+z_mean = [real_mean,fake_mean]
+z_std = [real_std,fake_std]
+z_skew = [real_skew,fake_skew]
+z_kurt = [real_kurt,fake_kurt]
+fig, axs = plt.subplots(nrows=2,ncols=4,
+                        subplot_kw={'projection': ccrs.PlateCarree()},
+                        figsize=(12,5),dpi=300)
+  
+
+r_mean = axs[0,0].pcolormesh(mlon, mlat, zi_mean_real,cmap=cmap_mean,norm=colors.Normalize(vmin=min_mean,vmax=max_mean),zorder=0,transform = ccrs.PlateCarree())
+axs[0,0].add_feature(cfeature.OCEAN,zorder=1,color='white')
+axs[0,0].add_feature(cfeature.BORDERS,zorder=4,alpha=.5)
+axs[0,0].add_feature(cfeature.COASTLINE,zorder=4,linewidth=1)
+for craton in cratons:
+        axs[0,0].plot(craton[:,1],craton[:,0],color='black',linewidth=.9)
+        axs[0,0].plot(craton[:,1],craton[:,0],color='black',linewidth=.9)
+
+r_std = axs[0,1].pcolormesh(mlon, mlat, zi_std_real,cmap=cmap_std,norm=colors.Normalize(vmin=min_std,vmax=max_std),zorder=0,transform = ccrs.PlateCarree())
+axs[0,1].add_feature(cfeature.OCEAN,zorder=1,color='white')
+axs[0,1].add_feature(cfeature.BORDERS,zorder=4,alpha=.5)
+axs[0,1].add_feature(cfeature.COASTLINE,zorder=4,linewidth=1)
+for craton in cratons:
+        axs[0,1].plot(craton[:,1],craton[:,0],color='black',linewidth=.9)
+        axs[0,1].plot(craton[:,1],craton[:,0],color='black',linewidth=.9)
+
+r_skew = axs[0,2].pcolormesh(mlon, mlat, zi_skew_real,cmap=cmap_skew,norm=colors.Normalize(vmin=min_skew,vmax=max_skew),zorder=0,transform = ccrs.PlateCarree())
+axs[0,2].add_feature(cfeature.OCEAN,zorder=1,color='white')
+axs[0,2].add_feature(cfeature.BORDERS,zorder=4,alpha=.5)
+axs[0,2].add_feature(cfeature.COASTLINE,zorder=4,linewidth=1)
+for craton in cratons:
+        axs[0,2].plot(craton[:,1],craton[:,0],color='black',linewidth=.9)
+        axs[0,2].plot(craton[:,1],craton[:,0],color='black',linewidth=.9)
+
+r_kurt = axs[0,3].pcolormesh(mlon, mlat, zi_kurt_real,cmap=cmap_kurt,norm=colors.Normalize(vmin=min_kurt,vmax=max_kurt),zorder=0,transform = ccrs.PlateCarree())
+axs[0,3].add_feature(cfeature.OCEAN,zorder=1,color='white')
+axs[0,3].add_feature(cfeature.BORDERS,zorder=4,alpha=.5)
+axs[0,3].add_feature(cfeature.COASTLINE,zorder=4,linewidth=1)
+for craton in cratons:
+        axs[0,3].plot(craton[:,1],craton[:,0],color='black',linewidth=.9)
+        axs[0,3].plot(craton[:,1],craton[:,0],color='black',linewidth=.9)
+
+f_mean = axs[1,0].pcolormesh(mlon, mlat, zi_mean_fake,cmap=cmap_mean,norm=colors.Normalize(vmin=min_mean,vmax=max_mean),zorder=0,transform = ccrs.PlateCarree())
+axs[1,0].add_feature(cfeature.OCEAN,zorder=1,color='white')
+axs[1,0].add_feature(cfeature.BORDERS,zorder=4,alpha=.5)
+axs[1,0].add_feature(cfeature.COASTLINE,zorder=4,linewidth=1)
+for craton in cratons:
+        axs[1,0].plot(craton[:,1],craton[:,0],color='black',linewidth=.9)
+        axs[1,0].plot(craton[:,1],craton[:,0],color='black',linewidth=.9)
+
+f_std = axs[1,1].pcolormesh(mlon, mlat, zi_std_fake,cmap=cmap_std,norm=colors.Normalize(vmin=min_std,vmax=max_std),zorder=0,transform = ccrs.PlateCarree())
+axs[1,1].add_feature(cfeature.OCEAN,zorder=1,color='white')
+axs[1,1].add_feature(cfeature.BORDERS,zorder=4,alpha=.5)
+axs[1,1].add_feature(cfeature.COASTLINE,zorder=4,linewidth=1)
+for craton in cratons:
+        axs[1,1].plot(craton[:,1],craton[:,0],color='black',linewidth=.9)
+        axs[1,1].plot(craton[:,1],craton[:,0],color='black',linewidth=.9)
+
+f_skew = axs[1,2].pcolormesh(mlon, mlat, zi_skew_fake,cmap=cmap_skew,norm=colors.Normalize(vmin=min_skew,vmax=max_skew),zorder=0,transform = ccrs.PlateCarree())
+axs[1,2].add_feature(cfeature.OCEAN,zorder=1,color='white')
+axs[1,2].add_feature(cfeature.BORDERS,zorder=4,alpha=.5)
+axs[1,2].add_feature(cfeature.COASTLINE,zorder=4,linewidth=1)
+for craton in cratons:
+        axs[1,2].plot(craton[:,1],craton[:,0],color='black',linewidth=.9)
+        axs[1,2].plot(craton[:,1],craton[:,0],color='black',linewidth=.9)
+                             
+f_kurt = axs[1,3].pcolormesh(mlon, mlat, zi_kurt_fake,cmap=cmap_kurt,norm=colors.Normalize(vmin=min_kurt,vmax=max_kurt),zorder=0,transform = ccrs.PlateCarree())
+axs[1,3].add_feature(cfeature.OCEAN,zorder=1,color='white')
+axs[1,3].add_feature(cfeature.BORDERS,zorder=4,alpha=.5)
+axs[1,3].add_feature(cfeature.COASTLINE,zorder=4,linewidth=1)
+for craton in cratons:
+        axs[1,3].plot(craton[:,1],craton[:,0],color='black',linewidth=.9)
+        axs[1,3].plot(craton[:,1],craton[:,0],color='black',linewidth=.9)
+
+
+#axs[0].coastlines()
+#axs[1].coastlines()
+
+
+axs[0][0].set_ylabel("MCMC")
+axs[1][0].set_ylabel("WGAN")
+axs[0][0].set_title("Mean")
+axs[0][1].set_title("Standard Deviation")
+axs[0][2].set_title("Skewness")
+axs[0][3].set_title("Kurtosis")
+
+
+fig.colorbar(f_mean,ax = axs[:,0],shrink=.55) 
+fig.colorbar(f_std,ax = axs[:,1],shrink=.55) 
+fig.colorbar(f_skew,ax = axs[:,2],shrink=.55) 
+fig.colorbar(f_kurt,ax = axs[:,3],shrink=.55) 
+#plt.tight_layout()
+plt.text(-380,100,"MCMC",fontsize=10);
+plt.text(-376,10,"GAN",fontsize=10);
+
+display(figure)
+display(fig)
