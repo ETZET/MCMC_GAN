@@ -4,15 +4,15 @@ Author: Enting Zhou
 Date: 06/15/2022
 Availability: https://github.com/ETZET/MCMC_GAN
 """
-import os.path
+import os
 import pickle
 import argparse
 import torch
-from torch.utils.data import DataLoader
 import numpy as np
 import wandb
-from process_data import Africa_Whole_Flat, MinMaxScaler
+from process_data import MinMaxScaler
 from generative_model import WGAN_SIMPLE
+import h5py
 
 
 def train_wgan_simple(args):
@@ -22,7 +22,12 @@ def train_wgan_simple(args):
     """
     # read data
     print("Reading Data...")
-    data = np.genfromtxt(args.input_path, delimiter=',', skip_header=True)
+    hf = h5py.File(args.input_path,'r')
+    data = np.array(hf.get('velmap'))
+    # use later 50 % to train
+    burnin = int(data.shape[0]*0.5)
+    data = data[burnin:,:]
+    
     device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
     print("currently using device:", device)
 
@@ -44,22 +49,16 @@ def train_wgan_simple(args):
         pickle.dump(scaler,f)
     data = scaler.transform(data)
 
-    # construct dataset and dataloader for batch training
-    map_dataset = Africa_Whole_Flat(data)
-    dataloader = DataLoader(map_dataset, batch_size=config['batch_size'],
-                            shuffle=True, num_workers=1)
-
     # initialize model
-    model = WGAN_SIMPLE(ndim=data.shape[1], device=device)
+    model = WGAN_SIMPLE(ndim=data.shape[1], device=device,nhid=300)
 
     if args.use_wandb:
         wandb.init(project="mcmc-wgan-simple",
                    config=config)
 
-    # optimization
-    if not os.path.exists(args.output_path):
-        os.makedirs(args.output_path)
-    model.optimize(dataloader,args.output_path, args.use_wandb, epochs=config['training_epoch'], lr=config['learning_rate'], beta1=config['momentum'],
+    model.optimize(data,output_path=args.output_path, use_wandb=args.use_wandb,
+                   batch_size=config['batch_size'], epochs=config['training_epoch'],
+                   lr=config['learning_rate'], beta1=config['momentum'],
                    device=device)
 
 
@@ -79,4 +78,7 @@ def parse_arguments():
 
 if __name__ == "__main__":
     args = parse_arguments()
+    # optimization
+    if not os.path.exists(args.output_path):
+        os.makedirs(args.output_path)
     train_wgan_simple(args)

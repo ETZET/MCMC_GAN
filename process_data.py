@@ -63,3 +63,29 @@ class MinMaxScaler():
         data_std = (data_scaled - range_min) / (range_max - range_min)
         data = data_std * self.diff + self.min
         return data
+
+
+def slice_dataset(data: np.ndarray, slice_ratio = None):
+    """
+    partition data at different ratio cutoff, e.g. first 20%, first 40%...
+    """
+    if slice_ratio is None:
+        slice_ratio = [0.2,0.4,0.6,0.8,1]
+    length,dim = data.shape
+    data_slices = []
+    for ratio in slice_ratio:
+        end_point = int(np.floor(ratio*length))
+        data_slices.append(data[:end_point,:])
+    return data_slices
+
+if __name__ == "__main__":
+    
+    data = np.genfromtxt("./data/R30P.csv", delimiter=',', skip_header=True)
+    slices = slice_dataset(data)
+    ratio = [0.2,0.4,0.6,0.8,1]
+    for idx,slice in enumerate(slices):
+        file_name = "./data/slices/R30P_{:1.0f%}.csv".format(ratio[idx])
+        np.savetxt(file_name,slice,delimiter=',')
+        
+    
+    

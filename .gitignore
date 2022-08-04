@@ -5,6 +5,7 @@ figures
 model
 output
 wandb
+venv
 
 sanity_check.py
 reqirements.txt

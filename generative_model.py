@@ -33,7 +33,7 @@ class WGAN_SIMPLE(nn.Module):
     Citation: Gulrajani, Ahmed & Arjovsky. Improved training of wasserstein gans. Adv. Neural Inf. Process. Syst.
     """
 
-    def __init__(self, ndim, nhid=200, nlatent=100, device="cpu"):
+    def __init__(self, ndim, nhid=300, nlatent=100, device="cpu"):
         """
         :param ndim: Number of feature in input data
         :param nhid: Number of hidden units per layer
@@ -121,7 +121,7 @@ class WGAN_SIMPLE(nn.Module):
 
                 toc = time.time()
                 # logging
-                if i % 5 == 0:
+                if i % 20 == 0:
                     print(
                         '[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\t Wasserstein Distance: %.4f\t  Elapsed time per Iteration: %.4fs'
                         % (epoch, epochs, i, len(dataloader),
