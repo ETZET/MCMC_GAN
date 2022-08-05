@@ -23,7 +23,7 @@ def train_wgan_simple(args):
     # read data
     print("Reading Data...")
     hf = h5py.File(args.input_path,'r')
-    data = np.array(hf.get('velmap'))
+    data = np.array(hf.get('velmap')).T
     # use later 50 % to train
     burnin = int(data.shape[0]*0.5)
     data = data[burnin:,:]
@@ -40,14 +40,6 @@ def train_wgan_simple(args):
         data=args.input_path,
         device=device
     )
-
-    # Normalize data to range of (-1,1)
-    print("Scaling input data...")
-    scaler = MinMaxScaler()
-    scaler.fit(data)
-    with open(os.path.join(args.output_path,'whole_scaler_extended.pkl'), 'wb') as f:
-        pickle.dump(scaler,f)
-    data = scaler.transform(data)
 
     # initialize model
     model = WGAN_SIMPLE(ndim=data.shape[1], device=device,nhid=300)

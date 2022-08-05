@@ -29,7 +29,7 @@ class WGAN_SIMPLE(nn.Module):
     Model Architecture cited from Scheiter, M., Valentine, A., Sambridge, M., 2022. Upscaling
     and downscaling Monte Carlo ensembles with generative models, Geophys. J. Int., ggac100.
 
-    This model use gradient penalty to enforce 1-Lipschitz constraint.
+    This model use gradient penalty to enforce 1-Lipschitz constraint instead of Weight Clipping in the original paper.
     Citation: Gulrajani, Ahmed & Arjovsky. Improved training of wasserstein gans. Adv. Neural Inf. Process. Syst.
     """
 
@@ -46,6 +46,7 @@ class WGAN_SIMPLE(nn.Module):
         self.ndim = ndim
         self.nlatent = nlatent
         self.device = device
+        self.scaler = None
         
         self.gen = nn.Sequential(
             nn.Linear(self.nlatent,nhid),
@@ -75,11 +76,18 @@ class WGAN_SIMPLE(nn.Module):
         
         self.gen.to(device)
         self.disc.to(device)
+    
+    def normalize(self,data):
+        self.scaler = MinMaxScaler()
+        self.scaler.fit(data)
+        return self.scaler.transform(data)
             
 
     def optimize(self, data, output_path, batch_size=128, use_wandb=False, lr=1e-4,
                  beta1=0.5, lambda_term=10, epochs=200, kkd=1, kkg=1, device="cpu"):
-        
+
+        # normalizae data to (-1,1) range
+        data = self.normalize(data)
         # construct dataset and dataloader for batch training
         map_dataset = Africa_Whole_Flat(data)
         dataloader = DataLoader(map_dataset, batch_size=batch_size,
@@ -138,9 +146,12 @@ class WGAN_SIMPLE(nn.Module):
                 print("average difference: {:.4f}/pixel, std difference: {:.4f}/pixel, \
                     EMD distance: {:.4f}/pixel".format(avg_diff,std_diff,dist))
                 torch.save({
+                    'ndim': self.ndim,
+                    'scaler':self.scaler,
                     'epoch': epoch,
+                    'EMD': dist,
                     'model_state_dict': self.state_dict(),
-                }, "{}/model_epoch{}.pth".format(model_save_path, epoch))
+                }, "{}/model_epoch{}_EMD{:6f}.pth".format(model_save_path, epoch,dist))
 
     def calculate_gradient_penalty(self, real_images, fake_images, lambda_term):
         batch_size = real_images.shape[0]
@@ -162,6 +173,30 @@ class WGAN_SIMPLE(nn.Module):
         grad_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * lambda_term
         return grad_penalty
 
+    def load(self,checkpoint):
+        self.load_state_dict(checkpoint["model_state_dict"])
+        self.scaler = checkpoint["scaler"]
+    
+    def generate(self,num=50000):
+        fake_data = np.zeros((num,self.ndim))
+        # if num is divisible by 100, generate by batch, else generate one by one
+        if num % 100 ==0:
+            for i in range(int(num/100)):
+                left_idx = 100 * i
+                right_idx = 100 * (i+1)
+                fake_data[left_idx:right_idx,:] = \
+                        self.gen(torch.randn(100, self.nlatent, device=self.device)).cpu().detach().numpy()
+        else:
+            for i in range(num):
+                fake_data[i,:] =  self.gen(torch.randn(1, self.nlatent, device=self.device)).cpu().detach().numpy()
+        # scaler the data back to original range
+        fake_data_scaled = self.scaler.inverse_transform(fake_data)
+        del fake_data
+        return fake_data_scaled
+    
+
+
+
 def eval(model, data):
     dim = data.shape[1]
     
@@ -171,7 +206,7 @@ def eval(model, data):
         left_idx = 100 * i
         right_idx = 100 * (i+1)
         with torch.no_grad():
-            fake_batch = model.gen(torch.randn(100, model.nlatent, device="cpu")).detach().numpy()
+            fake_batch = model.gen(torch.randn(100, model.nlatent, device=model.device)).cpu().detach().numpy()
         fake_data[left_idx:right_idx,:] = fake_batch
     # compare mean 
     real_avg = np.mean(data,axis=0)
